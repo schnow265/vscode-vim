@@ -13,6 +13,7 @@ import {
   float,
   bool,
   list,
+  dictionary,
 } from '../../src/vimscript/expression/build';
 import { EvaluationContext } from '../../src/vimscript/expression/evaluate';
 import { expressionParser } from '../../src/vimscript/expression/parser';
@@ -570,9 +571,16 @@ suite('Vimscript expressions', () => {
       exprTest('assert_report("whatever")', FAIL);
     });
 
-    suite('count', () => {
+    suite('add', () => {
       exprTest('add([1,2,3], 4)', { display: '[1, 2, 3, 4]' });
       exprTest('add(add(add([], 1), 2), 3)', { display: '[1, 2, 3]' });
+
+      exprTest('add(0zABCD, 0xEF)', { display: '0zABCDEF' });
+    });
+
+    suite('call', () => {
+      exprTest('call("abs", [-1])', { value: float(1) });
+      exprTest('call(function("abs"), [-1])', { value: float(1) });
     });
 
     suite('count', () => {
@@ -593,6 +601,11 @@ suite('Vimscript expressions', () => {
       exprTest('count(#{a:3,b:2,c:3}, 3)', { value: int(2) });
       exprTest('count(#{apple:"apple",b:"banana",c:"APPLE"}, "apple")', { value: int(1) });
       exprTest('count(#{apple:"apple",b:"banana",c:"APPLE"}, "apple", v:true)', { value: int(2) });
+
+      exprTest('count("abcababaB", "ab")', { value: int(3) });
+      exprTest('count("abcababaB", "ab", v:true)', { value: int(4) });
+      exprTest('count("aaaaaaaaa", "aa")', { value: int(4) });
+      exprTest('count("abc", "")', { value: int(0) });
     });
 
     suite('empty', () => {
@@ -626,6 +639,15 @@ suite('Vimscript expressions', () => {
       exprTest("function('abs')(-5)", { value: float(5) });
       exprTest("function('abs', [-5])()", { value: float(5) });
       exprTest("function('or', [1])(64)", { value: int(65) });
+    });
+
+    suite('flatten', () => {
+      exprTest('flatten([1, [2, [3, 4]], 5])', { display: '[1, 2, 3, 4, 5]' });
+      exprTest('flatten([1, [2, [3, 4]], 5], 1)', { display: '[1, 2, [3, 4], 5]' });
+      exprTest('flatten([1, [2, [3, 4]], 5], 0)', { display: '[1, [2, [3, 4]], 5]' });
+
+      exprTest('flatten({})', { error: ErrorCode.ArgumentOfSortMustBeAList });
+      exprTest('flatten([], -2)', { error: ErrorCode.MaxDepthMustBeANonNegativeNumber });
     });
 
     suite('float2nr', () => {
@@ -673,6 +695,19 @@ suite('Vimscript expressions', () => {
       exprTest('index(["A","C","D","C"], "C", 5)', { value: int(-1) });
     });
 
+    suite('insert', () => {
+      exprTest('insert([1,2,3], 4)', { display: '[4, 1, 2, 3]' });
+      exprTest('insert([1,2,3], 4, 2)', { display: '[1, 2, 4, 3]' });
+      exprTest('insert(insert(insert([], 1), 2), 3)', { display: '[3, 2, 1]' });
+
+      exprTest('insert(0zABCD, 0xEF)', { display: '0zEFABCD' });
+      exprTest('insert(0zABCD, 0xEF, 1)', { display: '0zABEFCD' });
+    });
+
+    suite('invert', () => {
+      exprTest('invert(123)', { value: int(-124) });
+    });
+
     suite('isnan/isinf', () => {
       exprTest('isnan(2.0 / 3.0)', { value: bool(false) });
       exprTest('isnan(0.0 / 0.0)', { value: bool(true) });
@@ -685,6 +720,25 @@ suite('Vimscript expressions', () => {
     suite('join', () => {
       exprTest('join([1,2,3])', { value: str('123') });
       exprTest('join([1,2,3], ",")', { value: str('1,2,3') });
+    });
+
+    suite('json_decode', () => {
+      exprTest(`json_decode('[1, 2.3, {"a": "apple", "b": [{}]}]')`, {
+        value: list([
+          int(1),
+          float(2.3),
+          dictionary(
+            new Map<string, Value>([
+              ['a', str('apple')],
+              ['b', list([dictionary(new Map())])],
+            ]),
+          ),
+        ]),
+      });
+    });
+
+    suite('json_encode', () => {
+      exprTest('json_encode([1, 2.3, #{a: 1, b: 2}])', { value: str('[1,2.3,{"a":1,"b":2}]') }); // TODO: Fix whitespace
     });
 
     suite('len', () => {
